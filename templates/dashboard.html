@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goal Tracker | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="dashboard-body">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <div class="dashboard-layout">
+        <aside class="dashboard-side glass-panel">
+            <div class="side-header">
+                <p class="eyebrow">Add Goal</p>
+                <h2>Planner Panel</h2>
+                <p class="muted-text">Drop a new target into your workflow.</p>
+            </div>
+
+            <form method="POST" action="{{ url_for('add_goal') }}" class="add-goal-form">
+                <label for="goal_text">Goal</label>
+                <textarea id="goal_text" name="goal_text" rows="5" placeholder="Write your next priority..." required></textarea>
+
+                <label for="goal_type">Category</label>
+                <select id="goal_type" name="goal_type" class="goal-type-select" required>
+                    <option value="daily">Daily Goal</option>
+                    <option value="weekly">Weekly Goal</option>
+                    <option value="monthly">Monthly Goal</option>
+                </select>
+
+                <button type="submit" class="primary-button">Add Goal</button>
+            </form>
+
+            <div class="side-summary">
+                <div class="summary-row">
+                    <span>Daily Queue</span>
+                    <strong>{{ stats["daily"]["total"] }}</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Weekly Queue</span>
+                    <strong>{{ stats["weekly"]["total"] }}</strong>
+                </div>
+                <div class="summary-row">
+                    <span>Monthly Queue</span>
+                    <strong>{{ stats["monthly"]["total"] }}</strong>
+                </div>
+                <div class="summary-row total-row">
+                    <span>Completion Rate</span>
+                    <strong>{{ stats["overall"]["progress"] }}%</strong>
+                </div>
+            </div>
+        </aside>
+
+        <main class="dashboard-main">
+            <header class="topbar glass-panel">
+                <div>
+                    <p class="eyebrow">Productivity Hub</p>
+                    <h1>Hello, {{ username }}.</h1>
+                    <p class="muted-text">Your mission board is ready for today.</p>
+                </div>
+                <div class="topbar-actions">
+                    <div class="overall-progress">
+                        <span>Overall Progress</span>
+                        <strong>{{ stats["overall"]["progress"] }}%</strong>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="secondary-button">Logout</a>
+                </div>
+            </header>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-stack dashboard-flash">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <section class="stats-grid">
+                <article class="metric-card glass-panel">
+                    <span>Total Completed</span>
+                    <strong>{{ stats["overall"]["completed"] }}</strong>
+                    <small>Out of {{ stats["overall"]["total"] }} tracked goals</small>
+                </article>
+                <article class="metric-card glass-panel">
+                    <span>Daily Progress</span>
+                    <strong>{{ stats["daily"]["completed"] }}/{{ stats["daily"]["total"] }}</strong>
+                    <small>{{ stats["daily"]["progress"] }}% complete</small>
+                </article>
+                <article class="metric-card glass-panel">
+                    <span>Weekly Progress</span>
+                    <strong>{{ stats["weekly"]["completed"] }}/{{ stats["weekly"]["total"] }}</strong>
+                    <small>{{ stats["weekly"]["progress"] }}% complete</small>
+                </article>
+                <article class="metric-card glass-panel">
+                    <span>Monthly Progress</span>
+                    <strong>{{ stats["monthly"]["completed"] }}/{{ stats["monthly"]["total"] }}</strong>
+                    <small>{{ stats["monthly"]["progress"] }}% complete</small>
+                </article>
+            </section>
+
+            <section class="goal-tabs glass-panel">
+                <button type="button" class="goal-tab active" data-goal-tab="daily">Daily</button>
+                <button type="button" class="goal-tab" data-goal-tab="weekly">Weekly</button>
+                <button type="button" class="goal-tab" data-goal-tab="monthly">Monthly</button>
+            </section>
+
+            <section class="goals-panel-wrap">
+                {% for goal_type, title, accent in [
+                    ("daily", "Daily Goals", "cyan"),
+                    ("weekly", "Weekly Goals", "lime"),
+                    ("monthly", "Monthly Goals", "amber")
+                ] %}
+                <article
+                    class="goal-column glass-panel goal-panel {% if goal_type == 'daily' %}active{% endif %}"
+                    data-goal-panel="{{ goal_type }}"
+                >
+                    <div class="goal-column-header">
+                        <div>
+                            <p class="eyebrow">{{ title }}</p>
+                            <h2>{{ stats[goal_type]["completed"] }}/{{ stats[goal_type]["total"] }} finished</h2>
+                        </div>
+                        <span class="goal-badge {{ accent }}">{{ stats[goal_type]["progress"] }}%</span>
+                    </div>
+
+                    <div class="progress-track">
+                        <div class="progress-fill {{ accent }}" style="width: {{ stats[goal_type]['progress'] }}%;"></div>
+                    </div>
+
+                    <div class="goal-list">
+                        {% if grouped_goals[goal_type] %}
+                            {% for goal in grouped_goals[goal_type] %}
+                                <div class="goal-item {% if goal['completed'] %}completed{% endif %}">
+                                    <form method="POST" action="{{ url_for('toggle_complete', goal_id=goal['id']) }}" class="toggle-form auto-submit-form">
+                                        <label class="goal-check">
+                                            <input type="checkbox" name="completed" {% if goal['completed'] %}checked{% endif %}>
+                                            <span class="custom-check"></span>
+                                        </label>
+                                    </form>
+
+                                    <div class="goal-content">
+                                        <p>{{ goal["goal_text"] }}</p>
+                                        <small>{{ goal["created_at"][:10] }}</small>
+                                    </div>
+
+                                    <form method="POST" action="{{ url_for('delete_goal', goal_id=goal['id']) }}" class="delete-form">
+                                        <button type="submit" class="delete-button" aria-label="Delete goal">Delete</button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-state">
+                                <p>No {{ goal_type }} goals yet.</p>
+                                <small>Add one from the planner panel.</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
